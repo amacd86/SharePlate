@@ -8,9 +8,15 @@
 
   <div class="container py-5">
 
-    <div class="text-center mb-4">
-      <h1>🍽️ SharePlate - {{ group_name }}</h1>
-      <p class="text-muted">Logged in as {{ user }}</p>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <div>
+        <h1>🍽️ SharePlate - {{ group_name }}</h1>
+        <p class="text-muted">Logged in as {{ user }}</p>
+      </div>
+      <div>
+        <a href="{{ url_for('group') }}" class="btn btn-outline-primary me-2">👥 Groups</a>
+        <a href="{{ url_for('messages') }}" class="btn btn-outline-secondary">💬 Messages</a>
+      </div>
     </div>
 
     <form method="POST" enctype="multipart/form-data" class="card p-4 shadow-sm mb-5">
@@ -33,7 +39,6 @@
     </form>
 
     <h3 class="mb-3">Plates Shared in {{ group_name }}</h3>
-
     {% for plate in plates %}
       <div class="card mb-3 p-3">
         <strong>{{ plate.user }}</strong>: {{ plate.description }}
@@ -47,6 +52,10 @@
         {% if plate.available_until %}
           <div class="text-muted small">Available until {{ plate.available_until }}</div>
         {% endif %}
+
+        <div class="mt-2">
+          <a href="#" class="btn btn-outline-secondary btn-sm">Message {{ plate.user }}</a>
+        </div>
       </div>
     {% endfor %}
 
