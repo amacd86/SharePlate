@@ -12,17 +12,17 @@ if not os.path.exists(app.config["UPLOAD_FOLDER"]):
 
 # Mock user data
 USERS = {
-    "Gus": "Aldrich Group",
-    "Tessa": "Aldrich Group",
-    "Rachel": "Aldrich Group",
-    "Ollie": "Lincoln Group",
-    "Gel": "Lincoln Group",
-    "Izzy": "Lincoln Group",
-    "Dylan": "Lincoln Group",
-    "Jackson": "Cabot Group",
-    "Kristen": "Cabot Group",
-    "Mark": "Cabot Group",
-    "Abby": "Cabot Group"
+    "Gus": {"group": "Aldrich Group", "avatar": "gus.jpg"},
+    "Tessa": {"group": "Aldrich Group", "avatar": "tessa.jpg"},
+    "Rachel": {"group": "Aldrich Group", "avatar": "default.jpg"},
+    "Ollie": {"group": "Lincoln Group", "avatar": "ollie.jpg"},
+    "Gel": {"group": "Lincoln Group", "avatar": "gel.jpg"},
+    "Izzy": {"group": "Lincoln Group", "avatar": "default.jpg"},
+    "Dylan": {"group": "Lincoln Group", "avatar": "dylan.jpg"},
+    "Jackson": {"group": "Cabot Group", "avatar": "jackson.jpg"},
+    "Kristen": {"group": "Cabot Group", "avatar": "kristen.jpg"},
+    "Mark": {"group": "Cabot Group", "avatar": "default.jpg"},
+    "Abby": {"group": "Cabot Group", "avatar": "abby.jpg"}
 }
 
 # In-memory data store
@@ -39,7 +39,7 @@ def register():
         username = request.form["username"]
         group = request.form["group"]
         if username not in USERS:
-            USERS[username] = group
+            USERS[username] = {"group": group, "avatar": "default.jpg"}
             session["user"] = username
             session["group"] = group
             return redirect(url_for("index"))
@@ -51,7 +51,7 @@ def login():
         username = request.form["username"]
         if username in USERS:
             session["user"] = username
-            session["group"] = USERS[username]
+            session["group"] = USERS[username]["group"]
             return redirect(url_for("index"))
         else:
             return redirect(url_for("register"))
@@ -71,7 +71,7 @@ def index():
     group_name = session["group"]
     now = datetime.now()
     group_feed = [plate for plate in FEED if plate["group"] == group_name and (not plate['available_until'] or datetime.strptime(plate['available_until'], '%Y-%m-%d %H:%M:%S') > now)]
-    return render_template("index.html", plates=group_feed, group_name=group_name, user=current_user)
+    return render_template("index.html", plates=group_feed, group_name=group_name, user=current_user, USERS=USERS)
 
 @app.route("/share", methods=["POST"])
 def share():
@@ -104,8 +104,8 @@ def group():
 
     current_user = session["user"]
     group_name = session["group"]
-    group_members = [user for user, group in USERS.items() if group == group_name]
-    return render_template("group.html", group_name=group_name, user=current_user, group_members=group_members)
+    group_members = [user for user, data in USERS.items() if data["group"] == group_name]
+    return render_template("group.html", group_name=group_name, user=current_user, group_members=group_members, USERS=USERS)
 
 @app.route("/messages")
 def messages():
@@ -114,7 +114,7 @@ def messages():
 
     current_user = session["user"]
     user_messages = MESSAGES.get(current_user, {})
-    return render_template("messages.html", user=current_user, messages=user_messages)
+    return render_template("messages.html", user=current_user, messages=user_messages, USERS=USERS)
 
 @app.route("/message/<recipient>", methods=["GET", "POST"])
 def message_user(recipient):
@@ -148,7 +148,7 @@ def message_user(recipient):
 
     conversation = MESSAGES[current_user].get(recipient, [])
     conversation.sort(key=lambda x: x["timestamp"])
-    return render_template("message_user.html", user=current_user, recipient=recipient, conversation=conversation)
+    return render_template("message_user.html", user=current_user, recipient=recipient, conversation=conversation, USERS=USERS)
 
 if __name__ == "__main__":
     app.run(debug=True)

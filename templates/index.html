@@ -6,6 +6,22 @@
 </head>
 <body class="bg-light">
 
+  <nav class="navbar navbar-expand-lg navbar-light bg-light">
+    <a class="navbar-brand" href="#">SharePlate</a>
+    <div class="collapse navbar-collapse">
+      <ul class="navbar-nav mr-auto">
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}">Home</a></li>
+        {# <li class="nav-item"><a class="nav-link" href="{{ url_for('upload') }}">Upload</a></li> #}
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('group') }}">Group</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('messages') }}">Messages</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Logout</a></li>
+      </ul>
+      <span class="navbar-text">
+        {{ user }}
+      </span>
+    </div>
+  </nav>
+
   <div class="container py-5">
 
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -14,20 +30,33 @@
         <p class="text-muted">Logged in as {{ user }}</p>
       </div>
       <div>
-        <a href="{{ url_for('group') }}" class="btn btn-outline-primary me-2">👥 Groups</a>
+        {# <a href="{{ url_for('upload') }}" class="btn btn-outline-primary me-2">👥 Groups</a> #}
         <a href="{{ url_for('messages') }}" class="btn btn-outline-secondary">💬 Messages</a>
       </div>
     </div>
 
-    <form method="POST" enctype="multipart/form-data" class="card p-4 shadow-sm mb-5">
+    <form action="{{ url_for('share') }}" method="POST" enctype="multipart/form-data" class="card p-4 shadow-sm mb-5">
       <div class="mb-3">
         <label for="description" class="form-label">What's on the plate?</label>
         <textarea name="description" id="description" class="form-control" required></textarea>
       </div>
 
       <div class="mb-3">
-        <label for="available_until" class="form-label">Available until (optional)</label>
-        <input type="text" name="available_until" id="available_until" class="form-control" placeholder="e.g. 7 PM">
+        <label class="form-label">Available until (optional)</label>
+        <div class="d-flex gap-2">
+          <select name="available_date" class="form-select">
+            <option value="">Select Date</option>
+            <option value="2025-03-26">Today</option>
+            <option value="2025-03-27">Tomorrow</option>
+          </select>
+          <select name="available_time" class="form-select">
+            <option value="">Select Time</option>
+            {% for hour in range(12, 24) %}
+              <option value="{{ ("%02d:00" % hour) }}">{{ (hour % 12 if hour % 12 else 12) ~ ":00 " ~ ("PM" if hour >= 12 else "AM") }}</option>
+              <option value="{{ ("%02d:30" % hour) }}">{{ (hour % 12 if hour % 12 else 12) ~ ":30 " ~ ("PM" if hour >= 12 else "AM") }}</option>
+            {% endfor %}
+          </select>
+        </div>
       </div>
 
       <div class="mb-3">
@@ -41,16 +70,21 @@
     <h3 class="mb-3">Plates Shared in {{ group_name }}</h3>
     {% for plate in plates %}
       <div class="card mb-3 p-3">
-        <strong>{{ plate.user }}</strong>: {{ plate.description }}
+        <div class="d-flex align-items-center">
+          <img src="{{ url_for('static', filename='avatars/' ~ USERS[plate.user].avatar) }}" width="40" class="rounded-circle me-2">
+          <strong>{{ plate.user }}</strong>: {{ plate.description }}
+        </div>
 
         {% if plate.image %}
           <div class="my-2">
-            <img src="{{ url_for('static', filename=plate.image) }}" class="img-fluid rounded" style="max-height: 300px;">
+            <img src="{{ url_for('uploaded_file', filename=plate.image) }}" class="img-fluid rounded" style="max-height: 300px;">
           </div>
         {% endif %}
 
         {% if plate.available_until %}
-          <div class="text-muted small">Available until {{ plate.available_until }}</div>
+          <div class="text-muted small">
+            Available until {{ plate.available_until | datetimeformat }}
+          </div>
         {% endif %}
 
         <div class="mt-2">
