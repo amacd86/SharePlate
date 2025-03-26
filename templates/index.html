@@ -2,9 +2,64 @@
 <html>
 <head>
   <title>SharePlate</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
-<body>
-  <h1>Welcome to SharePlate 🍽️</h1>
-  <p>This is the MVP. Let's get sharing.</p>
+<body class="bg-light">
+
+<div class="container py-5">
+  <h1 class="text-center mb-4">🍽️ SharePlate - {{ group_name }}</h1>
+
+  <!-- Share a Plate Form -->
+  <form method="POST" action="/?group={{ group_name }}" class="card p-4 shadow-sm mb-5">
+    <div class="mb-3">
+      <label for="group" class="form-label">Choose Group</label>
+      <select name="group" id="group" class="form-select">
+        {% for group in groups %}
+          <option value="{{ group }}" {% if group == group_name %}selected{% endif %}>{{ group }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="mb-3">
+      <label for="description" class="form-label">What's on the plate?</label>
+      <textarea name="description" id="description" class="form-control" required></textarea>
+    </div>
+
+    <div class="mb-3">
+      <label for="available_until" class="form-label">Available until (optional)</label>
+      <input type="text" name="available_until" id="available_until" class="form-control" placeholder="e.g. 7 PM">
+    </div>
+
+    <button type="submit" class="btn btn-success w-100">Share with {{ group_name }}</button>
+  </form>
+
+  <!-- Feed -->
+  {% if plates %}
+  <h2 class="mb-3">Plates Shared in {{ group_name }}</h2>
+  <div class="row row-cols-1 g-4">
+    {% for plate in plates %}
+    <div class="col">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <p class="card-text"><strong>{{ plate.description }}</strong></p>
+          {% if plate.available_until %}
+          <p class="mb-0 text-muted">⏰ Available until {{ plate.available_until }}</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+    <p class="text-muted text-center">No shared plates yet in {{ group_name }}.</p>
+  {% endif %}
+</div>
+<script>
+    document.getElementById("group").addEventListener("change", function () {
+      const selectedGroup = this.value;
+      window.location.href = `/?group=${encodeURIComponent(selectedGroup)}`;
+    });
+  </script>
+  
 </body>
 </html>
