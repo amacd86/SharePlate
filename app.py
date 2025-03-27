@@ -2,76 +2,235 @@ from flask import Flask, render_template, request, redirect, url_for, session, s
 import os
 from werkzeug.utils import secure_filename
 from datetime import datetime
-
+from models import db, User, Plate
+from werkzeug.security import check_password_hash, generate_password_hash  # Ensure this is imported
+import time  # Add this import for timestamping filenames
 app = Flask(__name__)
 app.secret_key = "supersecretkey"
+app.secret_key = "supersecretkey"
 app.config["UPLOAD_FOLDER"] = "static/uploads"
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///shareplate.db"
+db.init_app(app)
 
 if not os.path.exists(app.config["UPLOAD_FOLDER"]):
     os.makedirs(app.config["UPLOAD_FOLDER"])
 
-# Mock user data
-USERS = {
-    "Gus": {"group": "Aldrich Group", "avatar": "gus.jpg"},
-    "Tessa": {"group": "Aldrich Group", "avatar": "tessa.jpg"},
-    "Rachel": {"group": "Aldrich Group", "avatar": "default.jpg"},
-    "Ollie": {"group": "Lincoln Group", "avatar": "ollie.jpg"},
-    "Gel": {"group": "Lincoln Group", "avatar": "gel.jpg"},
-    "Izzy": {"group": "Lincoln Group", "avatar": "default.jpg"},
-    "Dylan": {"group": "Lincoln Group", "avatar": "dylan.jpg"},
-    "Jackson": {"group": "Cabot Group", "avatar": "jackson.jpg"},
-    "Kristen": {"group": "Cabot Group", "avatar": "kristen.jpg"},
-    "Mark": {"group": "Cabot Group", "avatar": "default.jpg"},
-    "Abby": {"group": "Cabot Group", "avatar": "abby.jpg"}
+VALID_INVITE_CODES = {
+    "ALDRICH123": "Aldrich Group",
+    "LINCOLN456": "Lincoln Group",
+    "CABOT789": "Cabot Group"
 }
-
-# In-memory data store
-FEED = []
-MESSAGES = {}
-
-@app.route("/uploads/<filename>")
-def uploaded_file(filename):
-    return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":
-        username = request.form["username"]
-        group = request.form["group"]
-        if username not in USERS:
-            USERS[username] = {"group": group, "avatar": "default.jpg"}
-            session["user"] = username
-            session["group"] = group
-            return redirect(url_for("index"))
+        name = request.form["name"]
+        email = request.form["email"]
+        password = request.form["password"]
+        invite_code = request.form["invite_code"]
+
+        valid_invites = {
+            "ALD123": "Aldrich Group",
+            "CAB456": "Cabot Group",
+            "LNC789": "Lincoln Group"
+        }
+
+        if invite_code not in valid_invites:
+            return "Invalid invite code."
+
+        group = valid_invites[invite_code]
+
+        if User.query.filter_by(email=email).first():
+            return "Email already registered."
+
+        new_user = User(name=name, email=email, group=group)
+        new_user.set_password(password)  # Hash the password
+        db.session.add(new_user)
+        db.session.commit()
+
+        session["user_id"] = new_user.id
+        return redirect(url_for("home"))
+
     return render_template("register.html")
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        username = request.form["username"]
-        if username in USERS:
-            session["user"] = username
-            session["group"] = USERS[username]["group"]
-            return redirect(url_for("index"))
+        email = request.form["email"]
+        password = request.form["password"]
+
+        user = User.query.filter_by(email=email).first()
+        if user and check_password_hash(user.password, password):
+            session["user_id"] = user.id
+            return redirect(url_for("home"))
         else:
-            return redirect(url_for("register"))
-    return render_template("login.html", users=USERS.keys())
+            return "Invalid email or password"
+
+    return render_template("login.html")  # No `users=` passed here
+
+@app.route("/profile")
+def profile():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    user = User.query.get(session["user_id"])
+    return render_template("profile.html", user=user)
+
+@app.route("/uploads/<filename>")
+def uploaded_file(filename):
+    return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
+
+@app.template_filter("datetimeformat")
+def datetimeformat(value):
+    try:
+        dt = datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+        return dt.strftime("%-I:%M %p")  # 7:30 PM
+    except Exception:
+        return value
+
+@app.route("/upload_avatar", methods=["POST"])
+def upload_avatar():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+    
+    file = request.files["avatar"]
+    if file and file.filename:
+        filename = f"{int(time.time())}_{secure_filename(file.filename)}"  # Append timestamp to filename
+        filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+        file.save(filepath)
+
+        user = User.query.get(session["user_id"])
+        user.avatar = filename  # Save filename in the database
+        db.session.commit()
+        return redirect(url_for("profile"))
+
+    return "No file selected"
+
+@app.route("/change_password", methods=["GET", "POST"])
+def change_password():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    user = User.query.get(session["user_id"])
+
+    if request.method == "POST":
+        current_password = request.form["current_password"]
+        new_password = request.form["new_password"]
+        confirm_password = request.form["confirm_password"]
+
+        if not check_password_hash(user.password, current_password):
+            return "❌ Current password is incorrect"
+
+        if new_password != confirm_password:
+            return "❌ New passwords do not match"
+
+        user.password = generate_password_hash(new_password)
+        db.session.commit()
+        return redirect(url_for("settings"))
+
+    return render_template("change_password.html")
 
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect(url_for("login"))
 
+@app.route("/settings", methods=["GET", "POST"])
+def settings():
+    print("🛠️ Entered settings route")
+    user = User.query.get(session["user_id"])
+    print("🔍 Loaded user:", user.name)
+
+    if request.method == "POST":
+        # Feed visibility
+        visibility = request.form.get("feed_visibility")
+        if visibility:
+            user.feed_visibility = visibility
+
+        # Group joining
+        invite_code = request.form.get("invite_code")
+        group = VALID_INVITE_CODES.get(invite_code)
+        if group:
+            user.group = group
+        elif invite_code:
+            return "Invalid invite code", 400
+
+        # Password change
+        new_password = request.form.get("new_password")
+        if new_password:
+            user.password = generate_password_hash(new_password)
+
+        # Avatar upload
+        avatar_file = request.files.get("avatar")
+        if avatar_file and avatar_file.filename:
+            filename = secure_filename(avatar_file.filename)
+            avatar_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+            avatar_file.save(avatar_path)
+            user.avatar = filename
+
+        db.session.commit()
+        return redirect(url_for("home"))
+
+    return render_template("settings.html", user=user)
+
 @app.route("/")
-def index():
-    if "user" not in session:
+def home():
+    if "user_id" not in session:
         return redirect(url_for("login"))
 
-    current_user = session["user"]
-    group_name = session["group"]
-    now = datetime.now()
-    group_feed = [plate for plate in FEED if plate["group"] == group_name and (not plate['available_until'] or datetime.strptime(plate['available_until'], '%Y-%m-%d %H:%M:%S') > now)]
-    return render_template("index.html", plates=group_feed, group_name=group_name, user=current_user, USERS=USERS)
+    user = User.query.get(session["user_id"])
+
+    # If user hasn't completed settings, show them a soft reminder screen
+    if not user.group or not user.feed_visibility:
+        return render_template("index.html", user_name=user.name, show_settings_link=True)
+
+    group_name = user.group
+
+    plates = (
+        Plate.query
+        .join(User)
+        .filter(User.group == group_name)  # Filter plates by group
+        .order_by(Plate.timestamp.desc())
+        .all()
+    )
+
+    # Debugging: Log plates in the group feed
+    print("📦 Plates in group feed:")
+    for p in plates:
+        print(f"➡️ {p.title}, {p.image}")
+        if p.image:
+            print("🧪 Would generate image URL:", url_for('static', filename='uploads/' + p.image))
+
+    return render_template("index.html", plates=plates, group_name=group_name, user_name=user.name)
+
+# Temporary route to debug all plates in the database
+@app.route("/debug_plates")
+def debug_plates():
+    plates = Plate.query.all()
+    return "<br>".join([f"{p.title} — {p.image}" for p in plates])
+
+@app.route("/debug_feed")
+def debug_feed():
+    plates = Plate.query.all()
+    output = []
+
+    for plate in plates:
+        output.append(
+            f"<strong>{plate.title}</strong><br>"
+            f"Description: {plate.description}<br>"
+            f"Image: {plate.image}<br>"
+            f"User ID: {plate.user_id}<br>"
+            f"Timestamp: {plate.timestamp}<br>"
+            f"<hr>"
+        )
+
+    return "<h1>All Plates in DB</h1>" + "<br>".join(output)
+
+@app.route("/reserve/<int:plate_id>")
+def reserve_plate(plate_id):
+    plate = Plate.query.get_or_404(plate_id)
+    plate.interested += 1
+    db.session.commit()
+    return redirect(url_for("home"))
 
 @app.route("/share", methods=["POST"])
 def share():
@@ -79,13 +238,22 @@ def share():
         return redirect(url_for("login"))
 
     description = request.form.get("description")
-    available_until = request.form.get("available_until")
+    date_part = request.form.get("available_date")
+    time_part = request.form.get("available_time")
     file = request.files.get("image")
 
     filename = None
     if file and file.filename:
         filename = secure_filename(file.filename)
         file.save(os.path.join(app.config["UPLOAD_FOLDER"], filename))
+
+    available_until = None
+    if date_part and time_part:
+        try:
+            available_until_dt = datetime.strptime(f"{date_part} {time_part}", "%Y-%m-%d %H:%M")
+            available_until = available_until_dt.strftime("%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            print("⚠️ Invalid date/time format")
 
     FEED.append({
         "user": session["user"],
@@ -99,23 +267,60 @@ def share():
 
 @app.route("/group")
 def group():
-    if "user" not in session:
+    if "user_id" not in session:
         return redirect(url_for("login"))
 
-    current_user = session["user"]
-    group_name = session["group"]
-    group_members = [user for user, data in USERS.items() if data["group"] == group_name]
-    return render_template("group.html", group_name=group_name, user=current_user, group_members=group_members, USERS=USERS)
+    user = User.query.get(session["user_id"])
+    group_name = user.group
+    group_members = [u.name for u in User.query.filter_by(group=group_name).all()]
+    return render_template("group.html", group_name=group_name, user=user, group_members=group_members)
 
 @app.route("/messages")
 def messages():
-    if "user" not in session:
+    if "user_id" not in session:
         return redirect(url_for("login"))
 
-    current_user = session["user"]
-    user_messages = MESSAGES.get(current_user, {})
-    return render_template("messages.html", user=current_user, messages=user_messages, USERS=USERS)
+    user = User.query.get(session["user_id"])
+    user_name = user.name
+    user_messages = MESSAGES.get(user_name, {})
+    return render_template("messages.html", user=user_name, messages=user_messages, USERS=USERS)
 
+@app.route("/upload", methods=["GET", "POST"])
+def upload():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    if request.method == "POST":
+        user = User.query.get(session["user_id"])
+        title = request.form.get("title")
+        description = request.form.get("description")
+        file = request.files.get("image")
+
+        filename = None
+        if file and file.filename:
+            filename = secure_filename(file.filename)
+            file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+            file.save(file_path)
+            print("📸 Uploaded image filename:", filename)  # Debugging print
+            print("📂 Saved to:", file_path)  # Debugging print
+
+        new_plate = Plate(
+            user_id=user.id,
+            title=title,
+            description=description,
+            image=filename,  # ✅ Save the filename to the database
+            timestamp=datetime.now(),
+            interested=0
+        )
+
+        db.session.add(new_plate)
+        db.session.commit()
+
+        return redirect(url_for("home"))
+
+    return render_template("upload.html")
+
+# Ensure this is the only message_user function
 @app.route("/message/<recipient>", methods=["GET", "POST"])
 def message_user(recipient):
     if "user" not in session:
@@ -123,7 +328,6 @@ def message_user(recipient):
 
     current_user = session["user"]
 
-    # Ensure message structure exists for both sender and recipient
     if current_user not in MESSAGES:
         MESSAGES[current_user] = {}
     if recipient not in MESSAGES:
@@ -149,6 +353,15 @@ def message_user(recipient):
     conversation = MESSAGES[current_user].get(recipient, [])
     conversation.sort(key=lambda x: x["timestamp"])
     return render_template("message_user.html", user=current_user, recipient=recipient, conversation=conversation, USERS=USERS)
+
+@app.route("/debug_uploads")
+def debug_uploads():
+    try:
+        folder = app.config["UPLOAD_FOLDER"]
+        files = os.listdir(folder)
+        return "<h2>Files in static/uploads:</h2><ul>" + "".join(f"<li>{f}</li>" for f in files) + "</ul>"
+    except FileNotFoundError:
+        return "<h1>Uploads folder not found</h1>"
 
 if __name__ == "__main__":
     app.run(debug=True)

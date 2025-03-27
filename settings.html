@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Settings - SharePlate</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .top-bar {
+            background-color: #ff6f3c;
+            color: white;
+            padding: 15px;
+            font-size: 20px;
+            font-weight: bold;
+        }
+        .settings-card {
+            background-color: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="top-bar">
+        Settings
+    </div>
+
+    <div class="container">
+        <div class="settings-card">
+            <h4 class="mb-4">Welcome to SharePlate, {{ user.name }}!</h4>
+
+            <form method="POST" enctype="multipart/form-data">
+                <!-- Feed Visibility -->
+                <div class="mb-4">
+                    <label class="form-label">Who can see your plate feed?</label>
+                    <select name="feed_visibility" class="form-select" required>
+                        <option value="">-- Select --</option>
+                        <option value="public" {% if user.feed_visibility == 'public' %}selected{% endif %}>Public</option>
+                        <option value="friends" {% if user.feed_visibility == 'friends' %}selected{% endif %}>Friends Only</option>
+                    </select>
+                </div>
+
+                <!-- Group Code -->
+                <div class="mb-4">
+                    <label class="form-label">Join a group (use invite code):</label>
+                    <input type="text" class="form-control" name="invite_code" placeholder="e.g. ALDRICH123">
+                    {% if user.group %}
+                    <small class="text-muted">Currently in: {{ user.group }}</small>
+                    {% endif %}
+                </div>
+
+                <!-- Password Change -->
+                <div class="mb-4">
+                    <label class="form-label">Change Password</label>
+                    <input type="password" class="form-control" name="new_password" placeholder="Leave blank to keep current password">
+                </div>
+
+                <!-- Avatar Upload -->
+                <div class="mb-4">
+                    <label class="form-label">Upload Profile Picture</label>
+                    <input type="file" class="form-control" name="avatar">
+                    {% if user.avatar %}
+                    <div class="mt-2">
+                        <small class="text-muted">Current avatar:</small><br>
+                        <img src="{{ url_for('uploaded_file', filename=user.avatar) }}" alt="Avatar" width="100" class="rounded">
+                    </div>
+                    {% endif %}
+                </div>
+
+                <button type="submit" class="btn btn-primary">Save & Continue</button>
+            </form>
+        </div>
+    </div>
+
+</body>
+</html>

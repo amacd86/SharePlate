@@ -6,15 +6,32 @@
 </head>
 <body class="bg-light">
 
+  <nav class="navbar navbar-expand-lg navbar-light bg-light">
+    <a class="navbar-brand" href="#">SharePlate</a>
+    <div class="collapse navbar-collapse">
+      <ul class="navbar-nav mr-auto">
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}">Home</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('upload') }}">Upload</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('group') }}">Group</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('messages') }}">Messages</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Logout</a></li>
+      </ul>
+      <span class="navbar-text">
+        {{ user }}
+      </span>
+    </div>
+  </nav>
+
   <div class="container py-5">
     <h2 class="mb-4">👥 People in {{ group_name }}</h2>
 
     <ul class="list-group mb-4">
       {% for friend in group_members %}
         <li class="list-group-item d-flex justify-content-between align-items-center">
+          <img src="{{ url_for('static', filename='avatars/' ~ USERS[friend].avatar) }}" width="40" class="rounded-circle me-2">
           {{ friend }}
           {% if friend != user %}
-          <a href="{{ url_for('message_user', recipient=friend) }}" class="btn btn-sm btn-outline-primary">Message</a>
+          <a href="{{ url_for('message_user', recipient=friend) }}" class="btn btn-primary">Message</a>
           {% else %}
             <span class="badge bg-secondary">You</span>
           {% endif %}
@@ -26,6 +43,4 @@
   </div>
 
 </body>
-<body class="bg-light">
-    <h1 style="color: red;">GROUP PAGE WORKING</h1>
 </html>
